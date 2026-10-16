@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "Jika Anda memakai kode atau notebook ini, mohon sitasi sebagai berikut."
+title: "Sistem Rekomendasi Hibrida Multi-Sinyal: Rating, Sentimen, dan Emosi (kode pendamping)"
+type: software
+authors:
+  - family-names: Rozi
+    given-names: Imam Fahrur
+  - family-names: Widiyaningtyas
+    given-names: Triyanna
+  - family-names: Utami
+    given-names: Sri Farida
+  - family-names: Riska
+    given-names: Suastika Yulia
+repository-code: "https://github.com/imamrozi/recsys-hibrida-multisinyal-notebooks"
+license: MIT
+# Tambahkan "doi:" di sini setelah Anda membuat rilis dan mendapat DOI dari Zenodo.
