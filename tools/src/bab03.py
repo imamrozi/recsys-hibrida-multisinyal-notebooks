@@ -431,6 +431,51 @@ assert kor_tab["ABSA"].is_monotonic_decreasing
 md("""
 **Interpretasi.** Pada simulasi ini bobot aspek pengguna makin sulit dipulihkan saat derau naik. Gerbang **tidak** memperbaiki pemulihan bobot itu. Ia bahkan sedikit menurunkannya, karena `g(c) · s` mengecilkan sinyal yang dipakai untuk menaksir `a`. Jadi manfaat gerbang pada RMSE (Eksperimen B) tidak otomatis berarti pemahaman preferensi pengguna lebih baik. Itu hasil simulasi ini, bukan hukum umum. Kesimpulan seperti itu perlu diuji pada data nyata dengan label preferensi aspek yang valid, jika ada.
 """),
+md("""
+### Pemeriksaan gradien: apakah pembaruan SGD sesuai Persamaan (3-8)?
+
+Buku menyatakan bahwa pembaruan ditulis eksplisit agar dapat diperiksa dengan beda hingga. Di sini satu langkah SGD pada satu rating (kelas `AspectMF` apa adanya) dibandingkan dengan gradien numerik dari fungsi rugi `½ e² + ½ λ (‖θ‖²)` dengan beda hingga terpusat. Pada satu sampel, `fit` menyetel `mu = r`, jadi `mu` ikut menjadi konstanta rugi.
+"""),
+code('''
+def rugi(m, u, i, r, s):
+    e = r - m.predict(np.array([u]), np.array([i]), s)[0]
+    reg = (m.bu[u] ** 2 + m.bi[i] ** 2 + (m.P[u] ** 2).sum() + (m.Q[i] ** 2).sum() + (m.A[u] ** 2).sum())
+    return 0.5 * e ** 2 + 0.5 * m.reg * reg
+
+def cek_gradien(seed=0, h=1e-6):
+    rng = np.random.default_rng(seed)
+    nU, nI, nA, u, i = 3, 4, 3, 1, 2
+    r = np.array([3.7]); s = rng.normal(0, 1, (1, nA))
+    m = AspectMF(nU, nI, nA, d=4, lr=1.0, reg=0.05, seed=seed)
+    # keadaan awal acak agar semua suku non-trivial
+    m.bu[:] = rng.normal(0, .3, nU); m.bi[:] = rng.normal(0, .3, nI); m.A[:] = rng.normal(0, .3, (nU, nA))
+    m.mu = float(r[0])
+    sebelum = {k: getattr(m, k).copy() for k in ("bu", "bi", "P", "Q", "A")}
+    # gradien numerik di titik awal (mu = r, seperti yang akan diset fit)
+    def fd(nama, idx):
+        arr = getattr(m, nama)
+        a0 = arr[idx]; arr[idx] = a0 + h; lp = rugi(m, u, i, r[0], s); arr[idx] = a0 - h; lm = rugi(m, u, i, r[0], s); arr[idx] = a0
+        return (lp - lm) / (2 * h)
+    galat = 0.0
+    num = {}
+    for nama, baris in (("bu", u), ("bi", i), ("P", u), ("Q", i), ("A", u)):
+        arr = getattr(m, nama)
+        idxs = [baris] if arr.ndim == 1 else [(baris, j) for j in range(arr.shape[1])]
+        num[nama] = np.array([fd(nama, ix) for ix in idxs])
+    # satu langkah SGD sungguhan (lr = 1 -> delta = -gradien)
+    m.fit(np.array([u]), np.array([i]), r, s, epochs=1, batch=1)
+    for nama, baris in (("bu", u), ("bi", i), ("P", u), ("Q", i), ("A", u)):
+        delta = getattr(m, nama)[baris] - sebelum[nama][baris]
+        galat = max(galat, float(np.max(np.abs(np.atleast_1d(delta) + num[nama]))))
+    return galat
+
+g_maks = max(cek_gradien(sd) for sd in range(5))
+print(f"galat maksimum |pembaruan SGD + gradien numerik|: {g_maks:.2e}")
+assert g_maks < 1e-6
+'''),
+md("""
+**Interpretasi.** Pembaruan di `fit` identik dengan gradien rugi (sampai ketelitian beda hingga), termasuk suku aspek `dr̂/da = s`. Ini memeriksa *implementasi* terhadap persamaan, bukan kualitas model. Perhatikan bahwa pemeriksaan ini memakai satu sampel dan `lr = 1`; pada pelatihan sebenarnya, `np.add.at` menjumlahkan kontribusi sampel dalam satu batch, yang secara matematis setara dengan menjumlahkan gradien mereka.
+"""),
 footer([
  "Mengapa gerbang memakai `g(c) · s` dan bukan menarik `s` ke 0,5 (netral) saat konfidens rendah? Apa konsekuensinya bagi tanda sumbangan aspek?",
  "Ubah `conf_informatif=False` dan ulangi Eksperimen B pada derau 0,7. Apa yang berubah?",
