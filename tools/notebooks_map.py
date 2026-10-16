@@ -1,5 +1,7 @@
 REPO = "imamrozi/recsys-hibrida-multisinyal-notebooks"
 REPO_URL = "https://github.com/" + REPO
+PAGES_BASE = "https://imamrozi.github.io/recsys-hibrida-multisinyal-notebooks/k/"
+def short_url(num): return PAGES_BASE + num + "/"
 def colab_url(nb):   # nb: 'bab05_emosi_sesi/02_mood_sesi_dan_reranking'
     return "https://colab.research.google.com/github/%s/blob/main/notebooks/%s.ipynb" % (REPO, nb)
 
