@@ -121,7 +121,7 @@ assert tabel.loc["Midnight Rage", "k_gab"] > tabel.loc["Mixed Signals", "k_gab"]
 assert tabel.loc["Tanpa Tag", "k_tag"] == 0.0       # tanpa tag: tidak ada bukti dari sumber tag
 '''),
 md("""
-**Interpretasi.** Trek yang tag-nya sepakat (Midnight Rage, Lake Evening) memiliki koordinat yang jelas dan κ lebih besar. *Mixed Signals* memuat tag yang saling bertentangan sehingga rata-ratanya mendekati pusat dan κ-nya rendah. Pada *Tanpa Tag* sumber tag nol, tetapi sumber teks menutupinya. Titik yang kecil pada plot adalah titik yang tidak boleh dipercaya penuh oleh hilir, misalnya oleh re-ranking di notebook berikutnya.
+**Interpretasi.** Trek yang tag-nya sepakat (Midnight Rage, Lake Evening) memiliki koordinat yang jelas dan κ lebih besar. *Mixed Signals* memuat tag yang saling bertentangan sehingga rata-ratanya mendekati pusat dan κ-nya rendah. Pada *Tanpa Tag* sumber tag nol, tetapi sumber teks menutupinya. Titik yang kecil pada plot adalah titik yang tidak boleh dipercaya penuh oleh komponen downstream, misalnya oleh re-ranking di notebook berikutnya.
 """),
 md("""
 ## 4. Eksperimen B: bukti, konsistensi, dan batas n_cap
@@ -234,8 +234,8 @@ Asumsi yang dibuat:
 - 400 item di empat kuadran valence–arousal.
 - Tiap pengguna punya utilitas stabil per item (`u`). Pilihan item pada langkah *t* mengikuti softmax dari `beta · (u + gamma · keselarasan(item, mood_t))`. `gamma` = seberapa kuat mood memengaruhi pilihan.
 - Mood sebenarnya konstan pada satu kuadran, lalu (pada sesi "peralihan") pindah ke kuadran lain di tengah sesi.
-- Sistem hanya melihat koordinat item yang dikonsumsi, dengan derau `sig_c` (koordinat tidak sempurna).
-- Tahap A (mood-buta) memberi skor `u + derau`; re-ranking mengambil 50 kandidat teratas dan memilih 10.
+- Sistem hanya melihat koordinat item yang dikonsumsi, dengan noise `sig_c` (koordinat tidak sempurna).
+- Tahap A (mood-buta) memberi skor `u + noise`; re-ranking mengambil 50 kandidat teratas dan memilih 10.
 """),
 code('''
 N_ITEM = 400
@@ -247,7 +247,7 @@ def katalog(seed=0):
 
 def sesi(rng, V, T=10, beta=3.0, gamma=1.0, sig_c=0.2, shift=True):
     """Satu sesi: riwayat T item + 1 item target. Mengembalikan utilitas stabil,
-    koordinat teramati (berderau) dari riwayat, target, dan mood sebenarnya saat target."""
+    koordinat teramati (mengandung noise) dari riwayat, target, dan mood sebenarnya saat target."""
     u = rng.normal(0, 1, N_ITEM)
     c0 = rng.integers(0, 4); c1 = (c0 + rng.integers(1, 4)) % 4
     moods = [PUSAT[c1] if (shift and t >= T // 2) else PUSAT[c0] for t in range(T + 1)]
@@ -268,7 +268,7 @@ print("riwayat:", hist_, "| target:", target_, "| mood sebenarnya saat target:",
 md("""
 ## 4. Eksperimen A: melacak mood dengan EWMA
 
-Pada sesi tanpa peralihan dan dengan peralihan, ukur galat pelacakan di akhir sesi (jarak antara estimasi mood dan mood sebenarnya) untuk beberapa `a_main`.
+Pada sesi tanpa peralihan dan dengan peralihan, ukur tracking error di akhir sesi (jarak antara estimasi mood dan mood sebenarnya) untuk beberapa `a_main`.
 """),
 code('''
 def estimasi_mood(V_obs, a_main=0.5, theta=0.35, kappas=None):
@@ -278,7 +278,7 @@ def estimasi_mood(V_obs, a_main=0.5, theta=0.35, kappas=None):
         flags.append(sh)
     return mood, flags
 
-def galat_pelacakan(a_main, shift, n_sesi=400, sig_c=0.4, seed=0):
+def error_pelacakan(a_main, shift, n_sesi=400, sig_c=0.4, seed=0):
     """Deteksi peralihan dimatikan (theta=5) agar efek a_main terlihat murni.
     gamma=3 dan T=14: pilihan cukup mencerminkan mood agar pelacakan bermakna."""
     rng = np.random.default_rng(seed)
@@ -289,7 +289,7 @@ def galat_pelacakan(a_main, shift, n_sesi=400, sig_c=0.4, seed=0):
         g.append(np.linalg.norm(mood - m_true))
     return float(np.mean(g))
 
-rows = [{"a_main": a, "tanpa peralihan": galat_pelacakan(a, False), "dengan peralihan": galat_pelacakan(a, True)}
+rows = [{"a_main": a, "tanpa peralihan": error_pelacakan(a, False), "dengan peralihan": error_pelacakan(a, True)}
         for a in (0.1, 0.3, 0.5, 0.8)]
 lacak = pd.DataFrame(rows).set_index("a_main")
 print(lacak.round(3))
@@ -297,10 +297,10 @@ assert lacak.loc[0.1, "tanpa peralihan"] < lacak.loc[0.8, "tanpa peralihan"]    
 assert lacak.loc[0.1, "dengan peralihan"] > lacak.loc[0.3, "dengan peralihan"]    # peralihan: EWMA lambat tertinggal
 '''),
 md("""
-**Interpretasi (simulasi).** Ada pertukaran klasik. `a_main` kecil meredam derau koordinat, tetapi lambat mengikuti peralihan. `a_main` besar cepat mengikuti peralihan, tetapi ikut terbawa derau. Pada sesi stabil, `a_main` kecil paling akurat; pada sesi dengan peralihan, `a_main = 0,1` justru jauh lebih buruk daripada 0,3 karena terlambat mengikuti. Deteksi peralihan (`theta`) di buku ada untuk menutup kelemahan itu: saat EWMA pendek dan panjang berjauhan, sistem mengikuti EWMA pendek.
+**Interpretasi (simulasi).** Ada pertukaran klasik. `a_main` kecil meredam noise koordinat, tetapi lambat mengikuti peralihan. `a_main` besar cepat mengikuti peralihan, tetapi ikut terbawa noise. Pada sesi stabil, `a_main` kecil paling akurat; pada sesi dengan peralihan, `a_main = 0,1` justru jauh lebih buruk daripada 0,3 karena terlambat mengikuti. Deteksi peralihan (`theta`) di buku ada untuk menutup kelemahan itu: saat EWMA pendek dan panjang berjauhan, sistem mengikuti EWMA pendek.
 """),
 code('''
-def galat_dengan_deteksi(theta, shift, n_sesi=400, sig_c=0.4, seed=0):
+def error_dengan_deteksi(theta, shift, n_sesi=400, sig_c=0.4, seed=0):
     rng = np.random.default_rng(seed)
     g = []
     for _ in range(n_sesi):
@@ -309,7 +309,7 @@ def galat_dengan_deteksi(theta, shift, n_sesi=400, sig_c=0.4, seed=0):
         g.append(np.linalg.norm(mood - m_true))
     return float(np.mean(g))
 
-rows = [{"theta": th, "tanpa peralihan": galat_dengan_deteksi(th, False), "dengan peralihan": galat_dengan_deteksi(th, True)}
+rows = [{"theta": th, "tanpa peralihan": error_dengan_deteksi(th, False), "dengan peralihan": error_dengan_deteksi(th, True)}
         for th in (0.15, 0.35, 0.6, 5.0)]
 deteksi = pd.DataFrame(rows).set_index("theta")
 print(deteksi.round(3))
@@ -317,15 +317,15 @@ assert deteksi.loc[0.35, "dengan peralihan"] < deteksi.loc[5.0, "dengan peraliha
 assert deteksi.loc[0.35, "tanpa peralihan"] > deteksi.loc[5.0, "tanpa peralihan"]      # tetapi menambah alarm palsu saat stabil
 '''),
 md("""
-**Interpretasi.** `theta = 5` setara dengan mematikan deteksi (jarak maksimum hanya 2,83). Pada sesi dengan peralihan, `theta` kecil menurunkan galat jauh dibanding EWMA lambat saja. Harganya terlihat pada sesi tanpa peralihan: `theta` kecil memicu alarm palsu karena derau, sehingga galat naik. Nilai `theta` adalah kompromi antara kepekaan dan alarm palsu.
+**Interpretasi.** `theta = 5` setara dengan mematikan deteksi (jarak maksimum hanya 2,83). Pada sesi dengan peralihan, `theta` kecil menurunkan error jauh dibanding EWMA lambat saja. Harganya terlihat pada sesi tanpa peralihan: `theta` kecil memicu alarm palsu karena noise, sehingga error naik. Nilai `theta` adalah kompromi antara kepekaan dan alarm palsu.
 """),
 md("""
 ## 5. Eksperimen B: bobot keyakinan κ pada EWMA
 
-Setengah item punya koordinat yang buruk (derau 1,0, κ = 0,2) dan setengahnya baik (derau 0,15, κ = 0,9). Bandingkan EWMA tanpa κ dengan EWMA berbobot κ.
+Setengah item punya koordinat yang buruk (noise 1,0, κ = 0,2) dan setengahnya baik (noise 0,15, κ = 0,9). Bandingkan EWMA tanpa κ dengan EWMA berbobot κ.
 """),
 code('''
-def galat_kappa(pakai_kappa, n_sesi=500, seed=0):
+def error_kappa(pakai_kappa, n_sesi=500, seed=0):
     """gamma=3, T=14 seperti di atas."""
     rng = np.random.default_rng(seed)
     g = []
@@ -339,12 +339,12 @@ def galat_kappa(pakai_kappa, n_sesi=500, seed=0):
         g.append(np.linalg.norm(mood - m_true))
     return float(np.mean(g))
 
-e0, e1 = galat_kappa(False), galat_kappa(True)
-print(f"galat pelacakan tanpa κ: {e0:.3f} | dengan κ: {e1:.3f}")
+e0, e1 = error_kappa(False), error_kappa(True)
+print(f"tracking error tanpa κ: {e0:.3f} | dengan κ: {e1:.3f}")
 assert e1 < e0
 '''),
 md("""
-**Interpretasi.** Bila κ memang informatif (item ber-derau tinggi diberi κ rendah), EWMA berbobot κ melacak mood lebih baik. Jika κ tidak berkaitan dengan kualitas koordinat, manfaat ini hilang. Sama seperti gerbang konfidens di Bab 3, κ hanya berguna jika benar-benar membawa informasi.
+**Interpretasi.** Bila κ memang informatif (item dengan noise tinggi diberi κ rendah), EWMA berbobot κ melacak mood lebih baik. Jika κ tidak berkaitan dengan kualitas koordinat, manfaat ini hilang. Sama seperti confidence gate di Bab 3, κ hanya berguna jika benar-benar membawa informasi.
 """),
 md("""
 ## 6. Eksperimen C: berapa bobot λ yang pantas untuk re-ranking?
@@ -382,8 +382,8 @@ assert tab_lam["gamma=1.0"].idxmax() not in (lams[0], lams[-1])               # 
 md("""
 **Interpretasi (simulasi dengan asumsi di atas).**
 
-1. Bila mood **tidak** memengaruhi perilaku (`gamma = 0`), re-ranking tidak memberi manfaat yang berarti (selisih kecil pada λ rendah masih dalam rentang derau simulasi), dan λ besar menurunkan hit rate karena menggeser rekomendasi menjauhi preferensi stabil. Re-ranking afektif bukan perbaikan universal.
-2. Bila mood berpengaruh sedang (`gamma = 1`), ada λ menengah yang memberi kenaikan nyata, dan λ yang terlalu besar mengabaikan relevansi sehingga hasil menurun lagi. Bentuk U terbalik ini yang menjadi alasan λ harus disetel pada validasi.
+1. Bila mood **tidak** memengaruhi perilaku (`gamma = 0`), re-ranking tidak memberi manfaat yang berarti (selisih kecil pada λ rendah masih dalam rentang noise simulasi), dan λ besar menurunkan hit rate karena menggeser rekomendasi menjauhi preferensi stabil. Re-ranking afektif bukan perbaikan universal.
+2. Bila mood berpengaruh sedang (`gamma = 1`), ada λ menengah yang memberi kenaikan nyata, dan λ yang terlalu besar mengabaikan relevansi sehingga hasil menurun lagi. Bentuk U terbalik ini yang menjadi alasan λ harus di-tuning pada validasi.
 3. Bila mood sangat berpengaruh (`gamma = 2`), λ optimum bergeser ke nilai yang lebih besar.
 
 Karena `gamma` pada data nyata tidak diketahui, λ **tidak boleh** ditetapkan dari intuisi. Perhatikan juga bahwa `gamma` di sini adalah asumsi simulasi: apakah pengguna nyata berperilaku demikian adalah pertanyaan empiris.
@@ -423,11 +423,11 @@ assert tab_salah.loc[0.9, "re-rank dengan κ"] > tab_salah.loc[0.9, "re-rank tan
 assert tab_salah.loc[0.9, "re-rank tanpa κ"] < tab_salah.loc[0.9, "tanpa re-ranking"] + 0.01   # tanpa κ: manfaat lenyap
 '''),
 md("""
-**Interpretasi (simulasi, gamma = 2, λ = 0,6).** Seiring bertambahnya porsi koordinat yang salah, manfaat re-ranking tanpa κ menyusut dan pada porsi 0,9 tidak lebih baik daripada tanpa re-ranking. Dengan κ, keselarasan item yang diragukan ditarik ke netral sehingga sebagian besar manfaat bertahan. Pada porsi kecil, selisih keduanya berada dalam rentang derau simulasi (±0,02), jadi jangan menafsirkan perbedaan kecil itu. Kualitas koordinat tetap hulu dari semuanya.
+**Interpretasi (simulasi, gamma = 2, λ = 0,6).** Seiring bertambahnya porsi koordinat yang salah, manfaat re-ranking tanpa κ menyusut dan pada porsi 0,9 tidak lebih baik daripada tanpa re-ranking. Dengan κ, keselarasan item yang diragukan ditarik ke netral sehingga sebagian besar manfaat bertahan. Pada porsi kecil, selisih keduanya berada dalam rentang noise simulasi (±0,02), jadi jangan menafsirkan perbedaan kecil itu. Kualitas koordinat tetap hulu dari semuanya.
 """),
 footer([
  "Mengapa `rerank` menormalkan skor Tahap A ke [0, 1] sebelum dicampur dengan keselarasan?",
- "Pada Eksperimen C, apa yang terjadi bila Tahap A bukan `u + derau 0,7`, tetapi `u + derau 0,1` (Tahap A jauh lebih akurat)? Prediksikan dulu, lalu jalankan.",
+ "Pada Eksperimen C, apa yang terjadi bila Tahap A bukan `u + noise 0,7`, tetapi `u + noise 0,1` (Tahap A jauh lebih akurat)? Prediksikan dulu, lalu jalankan.",
  "`target_mood` dengan `gamma > 0` mengarahkan pengguna ke mood tujuan. Kapan ini pantas dipakai, dan apa risiko etisnya (manipulasi emosi)?",
 ]),
 ]
@@ -436,10 +436,10 @@ footer([
 P = "notebooks/bab05_emosi_sesi/03_two_tower_gerbang_personal.ipynb"
 BUTUH = {P: "torch"}
 NB[P] = [
-header(P, "Two-tower dengan gerbang personal (PyTorch)", 5, "Kode 5.4.1",
- ["Membaca arsitektur two-tower dengan gerbang vektor antara preferensi jangka panjang dan sinyal sesi.",
-  "Melatih dengan loss softmax in-batch + koreksi logQ + regularisasi entropi gerbang.",
-  "Melihat apakah gerbang yang dipelajari mengikuti struktur data simulasi."],
+header(P, "Two-tower dengan personalized gate (PyTorch)", 5, "Kode 5.4.1",
+ ["Membaca arsitektur two-tower dengan gate bervektor antara preferensi jangka panjang dan sinyal sesi.",
+  "Melatih dengan loss softmax in-batch + koreksi logQ + regularisasi entropi gate.",
+  "Melihat apakah gate yang dipelajari mengikuti struktur data simulasi."],
  catatan="> **Peringatan.** Notebook ini membutuhkan PyTorch (sudah tersedia di Google Colab). Hasil asersi di bawah dirancang untuk simulasi kecil di CPU, tetapi tolok ukur kuantitatifnya dikonfirmasi lewat eksekusi otomatis di GitHub Actions, bukan dijamin lintas versi PyTorch. Kelompok pengguna 'konsisten' vs 'pengikut sesi' dalam simulasi adalah **asumsi**."),
 md("## 1. Kode dari buku"),
 code('''
@@ -467,7 +467,7 @@ class GatedUserTower(nn.Module):
         self.user = nn.Embedding(n_users, d)
         self.long = nn.Sequential(nn.Linear(d, d), nn.ReLU(), nn.Linear(d, d))
         self.sess = nn.Linear(d, d)
-        self.gate = nn.Linear(d + n_ctx + d, d)       # Pers. (5-7), gerbang bervektor
+        self.gate = nn.Linear(d + n_ctx + d, d)       # Pers. (5-7), gate bervektor
         self.eta = eta
     def forward(self, user_ids, ctx, sess_item_vecs, sess_mask):
         e_u = self.user(user_ids)
@@ -498,7 +498,7 @@ Dunia kecil dengan 300 item di 6 kelompok selera (cluster) dan koordinat valence
 - **Konsisten** (50%): item berikutnya diambil dari cluster favorit tetap, apa pun sesinya. Sinyal sesi tidak membantu.
 - **Pengikut sesi** (50%): item berikutnya mengikuti cluster item terakhir di sesi. Preferensi jangka panjang tidak membantu.
 
-Model **tidak diberi tahu** tipe pengguna. Jika arsitekturnya masuk akal, gerbang `g` (bobot jangka panjang) seharusnya lebih besar untuk pengguna konsisten.
+Model **tidak diberi tahu** tipe pengguna. Jika arsitekturnya masuk akal, gate `g` (bobot jangka panjang) seharusnya lebih besar untuk pengguna konsisten.
 """),
 code('''
 N_ITEM, N_USER, N_CL, T, D = 300, 400, 6, 6, 32
@@ -569,28 +569,28 @@ g_kons = g_rata[konsisten[u_te]].mean(); g_sess = g_rata[~konsisten[u_te]].mean(
 acak = 10 / N_ITEM
 print(f"loss awal -> akhir: {riw[0]:.3f} -> {riw[-1]:.3f}")
 print(f"hit@10 = {hit:.3f} (acak = {acak:.3f})")
-print(f"rata-rata gerbang jangka panjang: konsisten {g_kons:.3f} | pengikut sesi {g_sess:.3f}")
+print(f"rata-rata gate jangka panjang: konsisten {g_kons:.3f} | pengikut sesi {g_sess:.3f}")
 
 fig, ax = plt.subplots(1, 2, figsize=(8, 3))
 ax[0].plot(riw, marker="o"); ax[0].set(xlabel="epoch", ylabel="loss", title="Kurva latih")
 ax[1].hist(g_rata[konsisten[u_te]], bins=20, alpha=.6, label="konsisten")
 ax[1].hist(g_rata[~konsisten[u_te]], bins=20, alpha=.6, label="pengikut sesi")
-ax[1].set(xlabel="rata-rata g (bobot jangka panjang)", title="Gerbang per tipe"); ax[1].legend()
+ax[1].set(xlabel="rata-rata g (bobot jangka panjang)", title="Gate per tipe"); ax[1].legend()
 fig.tight_layout()
 
 assert riw[-1] < riw[0]
 assert hit > 3 * acak
 '''),
 md("""
-**Cara membaca hasil.** Pertama, loss turun dan hit@10 jauh di atas acak: model mempelajari struktur cluster. Kedua, bandingkan rata-rata gerbang antar tipe pengguna. Jika gerbang memang menangkap struktur data, pengguna konsisten bernilai `g` lebih tinggi. Hasil ini **tidak dijamin** pada setiap seed dan setiap versi PyTorch; periksa angka yang keluar, dan lihat ablasi di bawah sebelum menarik kesimpulan.
+**Cara membaca hasil.** Pertama, loss turun dan hit@10 jauh di atas acak: model mempelajari struktur cluster. Kedua, bandingkan rata-rata gate antar tipe pengguna. Jika gate memang menangkap struktur data, pengguna konsisten bernilai `g` lebih tinggi. Hasil ini **tidak dijamin** pada setiap seed dan setiap versi PyTorch; periksa angka yang keluar, dan lihat ablasi di bawah sebelum menarik kesimpulan.
 """),
 md("""
-## 4. Ablasi: apakah gerbang membantu?
+## 4. Ablasi: apakah gate membantu?
 
-Bandingkan dengan dua pembanding degenerat yang dibuat dengan membekukan gerbang: hanya jangka panjang (`g = 1`) dan hanya sesi (`g = 0`), lewat subclass sederhana. Ini menjawab pertanyaan inti: pada data campuran, apakah gerbang yang dipelajari mengalahkan kedua ekstrem?
+Bandingkan dengan dua baseline degenerat yang dibuat dengan membekukan gate: hanya jangka panjang (`g = 1`) dan hanya sesi (`g = 0`), lewat subclass sederhana. Ini menjawab pertanyaan inti: pada data campuran, apakah gate yang dipelajari mengalahkan kedua ekstrem?
 """),
 code('''
-class GerbangTetap(GatedUserTower):
+class GateTetap(GatedUserTower):
     def __init__(self, *a, nilai=1.0, **k):
         super().__init__(*a, **k); self.nilai = nilai
     def forward(self, user_ids, ctx, sess_item_vecs, sess_mask):
@@ -619,21 +619,21 @@ def latih_ut(kelas, seed=0, epochs=15, **kw):
     return it_, ut_
 
 hasil = {}
-for nama, kelas, kw in (("gerbang dipelajari", GatedUserTower, {}),
-                        ("hanya jangka panjang (g=1)", GerbangTetap, {"nilai": 1.0}),
-                        ("hanya sesi (g=0)", GerbangTetap, {"nilai": 0.0})):
+for nama, kelas, kw in (("gate dipelajari", GatedUserTower, {}),
+                        ("hanya jangka panjang (g=1)", GateTetap, {"nilai": 1.0}),
+                        ("hanya sesi (g=0)", GateTetap, {"nilai": 0.0})):
     a, b = latih_ut(kelas, **kw)
     hasil[nama] = evaluasi(a, b)[0]
 for k, v in hasil.items():
     print(f"{k:30s} hit@10 = {v:.3f}")
-assert hasil["gerbang dipelajari"] > hasil["hanya jangka panjang (g=1)"] - 0.02
+assert hasil["gate dipelajari"] > hasil["hanya jangka panjang (g=1)"] - 0.02
 '''),
 md("""
-**Interpretasi (perkiraan; periksa terhadap keluaran Anda).** Pada data campuran, kedua ekstrem masing-masing gagal pada separuh pengguna, sehingga gerbang yang dipelajari seharusnya setidaknya sebanding dengan yang terbaik dari keduanya dan idealnya lebih tinggi. Asersi di atas sengaja longgar (toleransi 0,02) karena simulasi kecil dan satu seed. Jika gerbang tidak unggul pada eksekusi Anda, itu informasi yang sah: tambah epoch, ubah `eta`, atau jalankan beberapa seed sebelum menyimpulkan.
+**Interpretasi (perkiraan; periksa terhadap keluaran Anda).** Pada data campuran, kedua ekstrem masing-masing gagal pada separuh pengguna, sehingga gate yang dipelajari seharusnya setidaknya sebanding dengan yang terbaik dari keduanya dan idealnya lebih tinggi. Asersi di atas sengaja longgar (toleransi 0,02) karena simulasi kecil dan satu seed. Jika gate tidak unggul pada eksekusi Anda, itu informasi yang sah: tambah epoch, ubah `eta`, atau jalankan beberapa seed sebelum menyimpulkan.
 """),
 footer([
  "Mengapa koreksi logQ perlu pada negatif in-batch? Apa yang terjadi bila item populer terlalu sering menjadi negatif?",
- "Setel `beta_g` ke 0, 0,01, dan 1. Bagaimana distribusi gerbang berubah? Apakah entropi tinggi atau rendah yang diharapkan?",
- "Tambahkan konteks nyata (misalnya jam hari) ke `ctx` yang sekarang nol. Perubahan apa yang Anda harapkan pada gerbang?",
+ "Setel `beta_g` ke 0, 0,01, dan 1. Bagaimana distribusi gate berubah? Apakah entropi tinggi atau rendah yang diharapkan?",
+ "Tambahkan konteks nyata (misalnya jam hari) ke `ctx` yang sekarang nol. Perubahan apa yang Anda harapkan pada gate?",
 ]),
 ]

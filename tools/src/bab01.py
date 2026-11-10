@@ -4,7 +4,7 @@ from common import header, footer
 P = "notebooks/bab01_lanskap/01_dataset_kejarangan_longtail.ipynb"
 NB = {}
 NB[P] = [
-header(P, "Dataset rekomendasi: kejarangan, k-core, dan long-tail", 1, "Kode 1.5.1 dan 1.5.2",
+header(P, "Dataset rekomendasi: sparsity, k-core, dan long-tail", 1, "Kode 1.5.1 dan 1.5.2",
  ["Mengukur ukuran, densitas, dan sparsity matriks interaksi.",
   "Memahami bahwa k-core filtering mengubah dataset, bukan sekadar membersihkannya.",
   "Melihat bagaimana kemiringan long-tail membuat baseline popularitas tampak kuat."]),

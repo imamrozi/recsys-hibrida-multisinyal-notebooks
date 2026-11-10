@@ -47,7 +47,7 @@ def run(path, verbose=False):
                 exec(compile(tree, path, "exec"), ns)
                 val = eval(compile(last, path, "eval"), ns) if last is not None else None
         except Exception:
-            raise RuntimeError("Galat pada sel kode #%d di %s:\n%s\n--- sel ---\n%s" % (count, path, traceback.format_exc(), src))
+            raise RuntimeError("Error pada sel kode #%d di %s:\n%s\n--- sel ---\n%s" % (count, path, traceback.format_exc(), src))
         if buf.getvalue():
             outs.append({"output_type": "stream", "name": "stdout", "text": buf.getvalue().splitlines(keepends=True)})
         if val is not None:

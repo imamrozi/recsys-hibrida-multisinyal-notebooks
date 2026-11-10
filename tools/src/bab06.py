@@ -44,8 +44,8 @@ md("""
 Dunia: 500 item dengan popularitas Zipf, 300 pengguna dengan selera laten. Item relevan bagi pengguna = 5 item uji yang disampel dari selera pengguna dengan peluang naik terhadap popularitas. Tiga model:
 
 - **Populer**: peringkat berdasarkan popularitas global.
-- **Personal-berderau**: skor selera sebenarnya + derau besar.
-- **Personal-jernih**: skor selera sebenarnya + derau kecil.
+- **Personal-noisy**: skor selera sebenarnya + noise besar.
+- **Personal-jernih**: skor selera sebenarnya + noise kecil.
 
 (Model "personal" di sini bukan algoritma nyata; mereka hanya pembuat skor dengan kualitas berbeda yang dikendalikan, supaya perilaku *metrik* terlihat.)
 """),
@@ -66,7 +66,7 @@ def peringkat(skor_fn):
 
 model = {
     "Populer":          peringkat(lambda u: pop),
-    "Personal-berderau": peringkat(lambda u: taste[u] + rng.normal(0, 2.5, N_I)),
+    "Personal-noisy": peringkat(lambda u: taste[u] + rng.normal(0, 2.5, N_I)),
     "Personal-jernih":  peringkat(lambda u: logit_rel[u] + rng.normal(0, 0.5, N_I)),
 }
 
@@ -96,10 +96,10 @@ ax[0].legend(fontsize=7); fig.tight_layout()
 
 t10 = tabel_metrik(model, 10)
 assert t10.loc["Personal-jernih", "ndcg"] > t10.loc["Populer", "ndcg"]
-assert t10.loc["Personal-jernih", "ndcg"] > t10.loc["Personal-berderau", "ndcg"]
+assert t10.loc["Personal-jernih", "ndcg"] > t10.loc["Personal-noisy", "ndcg"]
 '''),
 md("""
-**Interpretasi.** Model jernih unggul di semua K, dan model berderau paling buruk. Hit Rate menjenuh: pada K = 100 ia sudah 0,99 (Populer) dan 1,00 (jernih), sehingga hampir tidak membedakan keduanya, padahal recall@100 (0,58 vs 0,75) dan nDCG masih membedakan jelas. Jadi metrik yang menjenuh pada K besar kehilangan daya pembeda; pilih K dan metrik yang sesuai skenario tampilan. Perhatikan juga bahwa model Populer *tidak sebodoh itu* di sini karena relevansi dalam simulasi memang dipengaruhi popularitas (parameter `1.0 * log(pop)`); pada dataset nyata, seberapa kuat bias popularitas pada data uji adalah hal yang harus diukur, bukan diasumsikan.
+**Interpretasi.** Model jernih unggul di semua K, dan model yang mengandung noise paling buruk. Hit Rate menjenuh: pada K = 100 ia sudah 0,99 (Populer) dan 1,00 (jernih), sehingga hampir tidak membedakan keduanya, padahal recall@100 (0,58 vs 0,75) dan nDCG masih membedakan jelas. Jadi metrik yang menjenuh pada K besar kehilangan daya pembeda; pilih K dan metrik yang sesuai skenario tampilan. Perhatikan juga bahwa model Populer *tidak sebodoh itu* di sini karena relevansi dalam simulasi memang dipengaruhi popularitas (parameter `1.0 * log(pop)`); pada dataset nyata, seberapa kuat bias popularitas pada data uji adalah hal yang harus diukur, bukan diasumsikan.
 """),
 md("""
 ## 4. Jebakan: evaluasi dengan negatif tersampel
@@ -128,7 +128,7 @@ def hr_sampel(skor_fn, K=10, n_neg=99, seed=0):
 
 skor = {
     "Populer": lambda u: pop,
-    "Personal-berderau": lambda u, _r=np.random.default_rng(5): taste[u] + _r.normal(0, 2.5, N_I),
+    "Personal-noisy": lambda u, _r=np.random.default_rng(5): taste[u] + _r.normal(0, 2.5, N_I),
     "Personal-jernih": lambda u, _r=np.random.default_rng(6): logit_rel[u] + _r.normal(0, 0.5, N_I),
 }
 cmp_ = pd.DataFrame({nm: {"HR@10 penuh": hr_penuh(f), "HR@10 sampel (99 neg.)": hr_sampel(f)} for nm, f in skor.items()}).T
@@ -311,7 +311,7 @@ def skor_pengguna(n, rata, p_nol=0.5, rng=rng):
     return np.where(nol, 0.0, b)
 
 def varian(base, efek, r):
-    """Model B = A + efek + derau per pengguna. Pengguna dengan skor 0 tetap 0 (tidak ada yang bisa
+    """Model B = A + efek + noise per pengguna. Pengguna dengan skor 0 tetap 0 (tidak ada yang bisa
     diperbaiki), dan skor di-clip ke [0, 1]. Penanganan nol ini penting: meng-clip nol akan
     membuat B > A secara artifisial walau efek = 0."""
     return np.where(base > 0, np.clip(base + r.normal(efek, 0.10, len(base)), 0, 1), 0.0)
@@ -372,7 +372,7 @@ assert fwer_mentah > 0.5
 assert fwer_holm < 0.12
 '''),
 md("""
-**Interpretasi.** Menjalankan 20 pembandingan pada α = 0,05 hampir pasti menghasilkan setidaknya satu "temuan" palsu (teori: ~64%). Holm menekan peluang itu mendekati α (family-wise error rate) tanpa mengasumsikan independensi. Dalam penelitian nyata, jumlah perbandingan yang diuji, termasuk yang dibuang, harus dilaporkan. Catatan: simulasi memakai derau independen antar varian; pada varian yang saling berkorelasi, perilakunya berbeda.
+**Interpretasi.** Menjalankan 20 pembandingan pada α = 0,05 hampir pasti menghasilkan setidaknya satu "temuan" palsu (teori: ~64%). Holm menekan peluang itu mendekati α (family-wise error rate) tanpa mengasumsikan independensi. Dalam penelitian nyata, jumlah perbandingan yang diuji, termasuk yang dibuang, harus dilaporkan. Catatan: simulasi memakai noise independen antar varian; pada varian yang saling berkorelasi, perilakunya berbeda.
 """),
 md("""
 ## 5. Daya uji: seberapa sering efek nyata terdeteksi?
@@ -398,6 +398,6 @@ md("""
 footer([
  "Mengapa Wilcoxon sering dipilih untuk metrik per pengguna? Kapan uji-t sah walau data tidak normal?",
  "Ubah `skor_pengguna` menjadi tanpa nol (`p_nol=0`). Bagaimana hasil Wilcoxon vs uji-t berubah?",
- "Pada Bagian 4, buat varian yang saling berkorelasi (derau bersama). Bagaimana FWER tanpa koreksi berubah?",
+ "Pada Bagian 4, buat varian yang saling berkorelasi (noise bersama). Bagaimana FWER tanpa koreksi berubah?",
 ]),
 ]

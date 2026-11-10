@@ -40,7 +40,7 @@ def profil(rating_u, X):
 
 
 def skor(rating_u, X):
-    """Kemiripan kosinus profil dengan tiap item (Persamaan 2-3)."""
+    """Cosine similarity profil dengan tiap item (Persamaan 2-3)."""
     return cosine_similarity(profil(rating_u, X)[None, :], X)[0]
 '''),
 code('''
@@ -51,7 +51,7 @@ for nama, X in (("genre", genre), ("tf-idf", X_teks)):
 md("""
 Yang belum dinilai u2 adalah i2, i4, i6. Dengan genre, i2 (fantasi) unggul. Dengan TF-IDF skornya lebih halus karena kata yang dipakai ikut menentukan.
 """),
-md("## 2. Eksperimen A: peta kemiripan antaritem\n\nKemiripan kosinus antar-deskripsi menunjukkan apa yang sebenarnya dilihat CBF."),
+md("## 2. Eksperimen A: peta kemiripan antaritem\n\nCosine similarity antar-deskripsi menunjukkan apa yang sebenarnya dilihat CBF."),
 code('''
 S = cosine_similarity(X_teks)
 fig, ax = plt.subplots(figsize=(4.2, 3.6))
@@ -131,7 +131,7 @@ R = np.array([[5, 4, nan, 1, nan, nan],      # u1
 
 
 def kemiripan_pengguna(R, u):
-    """Kosinus antara baris u dan baris lain, sel kosong dianggap 0."""
+    """Cosine similarity antara baris u dan baris lain, sel kosong dianggap 0."""
     Z = np.nan_to_num(R)
     sim = Z @ Z[u] / (np.linalg.norm(Z, axis=1) * np.linalg.norm(Z[u]))
     sim[u] = 0.0                                   # abaikan diri sendiri
@@ -217,20 +217,20 @@ print("RMSE rata-rata global:", round(base_global, 3), "| rata-rata item:", roun
 print(hasil_mentah.round(3))
 '''),
 md("""
-Dengan kosinus pada rating mentah (seperti di buku), keunggulan atas baseline rata-rata kecil. Semua rating bernilai positif, jadi kosinus banyak ditentukan oleh *seberapa banyak* item yang dinilai pengguna, bukan oleh *selera*-nya.
+Dengan cosine similarity pada rating mentah (seperti di buku), keunggulan atas baseline rata-rata kecil. Semua rating bernilai positif, jadi cosine similarity banyak ditentukan oleh *seberapa banyak* item yang dinilai pengguna, bukan oleh *selera*-nya.
 """),
 md("""
 ## 3. Eksperimen B: memusatkan rating per pengguna
 
-Kurangi rata-rata tiap pengguna sebelum menghitung kosinus (ini setara dengan kosinus terpusat). Rating di atas kebiasaan pengguna jadi positif, di bawahnya negatif, sehingga selera ikut terbaca.
+Kurangi rata-rata tiap pengguna sebelum menghitung cosine similarity (ini setara dengan cosine similarity terpusat). Rating di atas kebiasaan pengguna jadi positif, di bawahnya negatif, sehingga selera ikut terbaca.
 """),
 code('''
 hasil_pusat = knn_eval(R_latih, uji, y_uji, ks, center=True)
 print(hasil_pusat.round(3))
 
 fig, ax = plt.subplots(figsize=(5.2, 3.2))
-ax.plot(hasil_mentah.index, hasil_mentah["RMSE"], "o-", label="kosinus mentah")
-ax.plot(hasil_pusat.index, hasil_pusat["RMSE"], "s-", label="kosinus terpusat")
+ax.plot(hasil_mentah.index, hasil_mentah["RMSE"], "o-", label="cosine similarity mentah")
+ax.plot(hasil_pusat.index, hasil_pusat["RMSE"], "s-", label="cosine similarity terpusat")
 ax.axhline(base_item, ls="--", c="gray", label="rata-rata item")
 ax.set(xscale="log", xlabel="k (tetangga)", ylabel="RMSE uji")
 ax.legend()
@@ -241,10 +241,10 @@ assert hasil_pusat["RMSE"].min() < hasil_mentah["RMSE"].min() < base_global
 assert hasil_pusat["RMSE"].min() < base_item
 '''),
 md("""
-**Interpretasi (data simulasi).** *k* kecil berisik karena bertumpu pada satu atau dua tetangga. *k* sangat besar mencampur kelompok selera yang berbeda sehingga prediksi ditarik ke rata-rata. Titik terbaik ada di antaranya. Pemusatan rating memberi perbaikan yang jauh lebih besar daripada sekadar memilih *k* terbaik pada kosinus mentah. Pada matriks jarang, laporkan juga cakupan, bukan hanya RMSE.
+**Interpretasi (data simulasi).** *k* kecil berisik karena bertumpu pada satu atau dua tetangga. *k* sangat besar mencampur kelompok selera yang berbeda sehingga prediksi ditarik ke rata-rata. Titik terbaik ada di antaranya. Pemusatan rating memberi perbaikan yang jauh lebih besar daripada sekadar memilih *k* terbaik pada cosine similarity mentah. Pada matriks jarang, laporkan juga cakupan, bukan hanya RMSE.
 """),
 footer([
- "Mengapa sel kosong dianggap 0 pada `kemiripan_pengguna`, dan masalah apa yang ditimbulkan? (Petunjuk: bandingkan dengan kosinus yang dihitung pada item yang sama-sama dinilai.)",
+ "Mengapa sel kosong dianggap 0 pada `kemiripan_pengguna`, dan masalah apa yang ditimbulkan? (Petunjuk: bandingkan dengan cosine similarity yang dihitung pada item yang sama-sama dinilai.)",
  "Apa yang terjadi pada cakupan jika kepadatan matriks diturunkan menjadi 3%?",
  "Mengapa `simulasi_rating` membuat k-NN tampak bagus? Ciri data nyata apa yang tidak tertangkap?",
 ]),
@@ -255,7 +255,7 @@ P = "notebooks/bab02_pendekatan_dasar/03_matrix_factorization_sgd.ipynb"
 NB[P] = [
 header(P, "Faktorisasi matriks berbias dengan SGD", 2, "Kode 2.2.2",
  ["Memahami prediksi r̂ = μ + b_u + b_i + p_u·q_i dan pembaruan SGD-nya.",
-  "Melihat overfitting: galat latih turun, galat uji naik, saat model terlalu ekspresif.",
+  "Melihat overfitting: training error turun, test error naik, saat model terlalu ekspresif.",
   "Melihat peran regularisasi."]),
 md("## 1. Kode dari buku"),
 code('''
@@ -288,7 +288,7 @@ class BiasedMF:
         self.Q = 0.1 * rng.standard_normal((n, self.d))
         for _ in range(self.epochs):
             for u, i in rng.permutation(obs):
-                e = R[u, i] - self.predict(u, i)     # galat e_ui
+                e = R[u, i] - self.predict(u, i)     # error e_ui
                 self.bu[u] += self.lr * (e - self.reg * self.bu[u])
                 self.bi[i] += self.lr * (e - self.reg * self.bi[i])
                 pu = self.P[u].copy()
@@ -310,7 +310,7 @@ for i in (1, 3, 5):
 md("""
 ## 2. Eksperimen A: overfitting dan dimensi laten
 
-Data simulasi 80 × 50 dengan struktur laten berpangkat 3 dan derau. Kita latih dengan dimensi *d* berbeda dan regularisasi kecil, lalu bandingkan RMSE latih dan uji.
+Data simulasi 80 × 50 dengan struktur laten berpangkat 3 dan noise. Kita latih dengan dimensi *d* berbeda dan regularisasi kecil, lalu bandingkan RMSE latih dan uji.
 """),
 code('''
 def simulasi_laten(m=80, n=50, rank=3, density=0.25, noise=0.5, seed=3):
@@ -345,7 +345,7 @@ print(hasil_d.round(3))
 md("""
 ## 3. Eksperimen B: regularisasi
 
-Tetapkan dimensi besar (*d* = 24) lalu variasikan `reg`. Regularisasi menekan faktor agar tidak menghafal derau.
+Tetapkan dimensi besar (*d* = 24) lalu variasikan `reg`. Regularisasi menekan faktor agar tidak menghafal noise.
 """),
 code('''
 rows = []
@@ -361,11 +361,11 @@ hasil_reg.plot(ax=b, marker="o", logx=False, title="Regularisasi (d=24)")
 for x in (a, b): x.set_ylabel("RMSE")
 fig.tight_layout()
 
-# klaim yang diuji: galat latih lebih kecil daripada galat uji (celah generalisasi)
+# klaim yang diuji: training error lebih kecil daripada test error (celah generalisasi)
 assert (hasil_d["RMSE_uji"] > hasil_d["RMSE_latih"]).all()
 '''),
 md("""
-**Interpretasi (data simulasi).** Galat latih lebih kecil daripada galat uji di semua konfigurasi, dan celahnya melebar saat model makin ekspresif: pada *d* = 24 model nyaris hafal data latih (galat ≈ 0,07) tetapi galat uji tetap sekitar 1,0. Pada eksperimen ini galat uji tidak naik tajam bersama *d*, karena pelatihan hanya 60 epoch dengan inisialisasi kecil (efek *early stopping*). Regularisasi menunjukkan bentuk U: tanpa regularisasi model menghafal, sedangkan `reg` terlalu besar membuat model *underfit* (galat latih dan uji sama-sama naik). Titik terbaik ada di nilai menengah.
+**Interpretasi (data simulasi).** Training error lebih kecil daripada test error di semua konfigurasi, dan celahnya melebar saat model makin ekspresif: pada *d* = 24 model nyaris hafal data latih (error ≈ 0,07) tetapi test error tetap sekitar 1,0. Pada eksperimen ini test error tidak naik tajam bersama *d*, karena pelatihan hanya 60 epoch dengan inisialisasi kecil (efek *early stopping*). Regularisasi menunjukkan bentuk U: tanpa regularisasi model menghafal, sedangkan `reg` terlalu besar membuat model *underfit* (training error dan uji sama-sama naik). Titik terbaik ada di nilai menengah.
 """),
 md("""
 ## 4. Eksperimen C: lamanya pelatihan
@@ -383,7 +383,7 @@ assert hasil_ep["RMSE_latih"].is_monotonic_decreasing
 assert hasil_ep["RMSE_uji"].idxmin() not in (hasil_ep.index[0], hasil_ep.index[-1])
 '''),
 md("""
-**Interpretasi.** Galat latih turun terus hingga hampir nol, sedangkan galat uji mencapai titik terendah di epoch menengah lalu sedikit naik. Itulah alasan praktiknya memakai data validasi untuk menghentikan pelatihan lebih awal (*early stopping*), bukan melatih sampai galat latih habis.
+**Interpretasi.** Training error turun terus hingga hampir nol, sedangkan test error mencapai titik terendah di epoch menengah lalu sedikit naik. Itulah alasan praktiknya memakai data validasi untuk menghentikan pelatihan lebih awal (*early stopping*), bukan melatih sampai training error habis.
 """),
 footer([
  "Mengapa pembaruan `bu`, `bi`, `P`, `Q` memakai salinan `pu` sebelum diperbarui?",
@@ -399,7 +399,7 @@ header(P, "Hibrida sederhana: berbobot dan beralih", 2, "Kode 2.3.1",
  ["Memahami dua cara menggabungkan prediksi CF dan CBF.",
   "Melihat mengapa hibrida membantu pada item yang jarang dinilai (cold-start item).",
   "Menyetel κ dan τ dari data validasi, bukan dari intuisi."],
- catatan="> Eksperimen B memakai **model galat yang diasumsikan** (galat CF mengecil seiring jumlah rating). Ini ilustrasi mekanisme, bukan pengukuran."),
+ catatan="> Eksperimen B memakai **model error yang diasumsikan** (error CF mengecil seiring jumlah rating). Ini ilustrasi mekanisme, bukan pengukuran."),
 md("## 1. Kode dari buku"),
 code('''
 import numpy as np
@@ -443,15 +443,15 @@ fig.tight_layout()
 md("""
 ## 3. Eksperimen B: kapan hibrida menang?
 
-Asumsi simulasi: kebenaran adalah rating sebenarnya; galat CF mengecil seiring jumlah rating item (simpangan baku ∝ 1/√(n+1)), sedangkan galat CBF tetap (simpangan baku 0,8). Kita bandingkan RMSE per kelompok popularitas item.
+Asumsi simulasi: kebenaran adalah rating sebenarnya; error CF mengecil seiring jumlah rating item (simpangan baku ∝ 1/√(n+1)), sedangkan error CBF tetap (simpangan baku 0,8). Kita bandingkan RMSE per kelompok popularitas item.
 """),
 code('''
 rng = np.random.default_rng(0)
 N = 20000
 n_rating = np.minimum(rng.zipf(1.6, N), 200)               # banyak item hanya sedikit rating
 y = rng.normal(3.5, 0.8, N)
-cf = y + rng.normal(0, 1.8 / np.sqrt(n_rating + 1))        # galat CF mengecil dengan n
-cbf = y + rng.normal(0, 0.8, N)                            # galat CBF konstan
+cf = y + rng.normal(0, 1.8 / np.sqrt(n_rating + 1))        # error CF mengecil dengan n
+cbf = y + rng.normal(0, 0.8, N)                            # error CBF konstan
 
 def rmse(a, b): return float(np.sqrt(np.mean((a - b) ** 2)))
 
@@ -470,9 +470,9 @@ print(hasil.round(3))
 assert hasil.iloc[0]["berbobot"] < hasil.iloc[0]["CF"]
 '''),
 md("""
-**Interpretasi (dari asumsi simulasi).** CF sangat buruk pada item yang nyaris tak punya rating, CBF stabil tetapi tidak membaik seiring bertambahnya rating. Hibrida beralih mengikuti yang terbaik di ujung-ujung rentang, tetapi bisa lebih buruk daripada hibrida berbobot di sekitar ambang τ karena memakai CF yang masih berisik. Hibrida berbobot unggul atas keduanya di semua kelompok. Itu bergantung pada asumsi simulasi bahwa galat CF dan CBF *independen*. Pada data nyata galat keduanya sering berkorelasi, sehingga keuntungannya lebih kecil.
+**Interpretasi (dari asumsi simulasi).** CF sangat buruk pada item yang nyaris tak punya rating, CBF stabil tetapi tidak membaik seiring bertambahnya rating. Hibrida beralih mengikuti yang terbaik di ujung-ujung rentang, tetapi bisa lebih buruk daripada hibrida berbobot di sekitar ambang τ karena memakai CF yang masih berisik. Hibrida berbobot unggul atas keduanya di semua kelompok. Itu bergantung pada asumsi simulasi bahwa error CF dan CBF *independen*. Pada data nyata error keduanya sering berkorelasi, sehingga keuntungannya lebih kecil.
 
-Ini hanya menunjukkan mekanisme. Bentuk kurva galat CF dan CBF pada data nyata harus diukur.
+Ini hanya menunjukkan mekanisme. Bentuk kurva error CF dan CBF pada data nyata harus diukur.
 """),
 md("## 4. Eksperimen C: menyetel κ pada data validasi"),
 code('''
@@ -486,7 +486,7 @@ print("RMSE uji pada κ itu :", round(rmse(hibrida_berbobot(cf[tes], cbf[tes], n
 '''),
 footer([
  "Mengapa hibrida beralih bisa lebih buruk daripada CBF di sekitar n = τ?",
- "Apa yang berubah pada κ terbaik jika galat CBF diperbesar menjadi 1,5?",
+ "Apa yang berubah pada κ terbaik jika error CBF diperbesar menjadi 1,5?",
  "Selain jumlah rating item, sinyal apa lagi yang cocok menentukan bobot CF?",
 ]),
 ]

@@ -6,8 +6,8 @@ NB = {}
 # ------------------------------------------------------------------ 4.1 ALS
 P = "notebooks/bab04_hybrid_cf/01_als_dengan_bias.ipynb"
 NB[P] = [
-header(P, "ALS dengan bias: pembaruan tertutup bergantian", 4, "Kode 4.2.1",
- ["Memahami bahwa ALS menyelesaikan tiap faktor sebagai regresi ridge (solusi tertutup).",
+header(P, "ALS dengan bias: pembaruan closed-form bergantian", 4, "Kode 4.2.1",
+ ["Memahami bahwa ALS menyelesaikan tiap faktor sebagai regresi ridge (solusi closed-form).",
   "Menguraikan sumbangan rata-rata global, bias, dan faktor laten terhadap akurasi.",
   "Menyetel dimensi d dan regularisasi λ pada data validasi."],
  catatan="> Implementasi ALS di buku ditulis dengan perulangan Python agar mudah dibaca. Itu **lambat dan tidak production-ready** untuk data besar. Untuk skala nyata, gunakan pustaka ALS terdistribusi atau vektorisasi."),
@@ -53,7 +53,7 @@ def als_bias(R, n_users, n_items, d=50, lam=0.02, iters=10, seed=0):
 md("""
 ## 2. Data simulasi
 
-500 pengguna × 200 item dengan struktur laten berpangkat 4, bias pengguna dan item, derau, dan kepadatan 20%. Kita sembunyikan 20% rating untuk uji.
+500 pengguna × 200 item dengan struktur laten berpangkat 4, bias pengguna dan item, noise, dan kepadatan 20%. Kita sembunyikan 20% rating untuk uji.
 """),
 code('''
 def simulasi_laten(m=500, n=200, rank=4, density=0.20, noise=0.5, seed=11):
@@ -82,7 +82,7 @@ def rmse(a, b): return float(np.sqrt(np.mean((a - b) ** 2)))
 md("""
 ## 3. Eksperimen A: sumbangan tiap komponen
 
-Latih ALS (*d* = 8, λ = 5) lalu bandingkan RMSE uji: hanya rata-rata global, rata-rata global + bias, dan model penuh. λ di sini lebih besar daripada nilai awal buku karena data kecil dan berderau.
+Latih ALS (*d* = 8, λ = 5) lalu bandingkan RMSE uji: hanya rata-rata global, rata-rata global + bias, dan model penuh. λ di sini lebih besar daripada nilai awal buku karena data kecil dan mengandung noise.
 """),
 code('''
 model = als_bias(R_latih, m, n, d=8, lam=5.0, iters=10)
@@ -97,12 +97,12 @@ assert rows["+ bias pengguna dan item"] < rows["rata-rata global"]
 assert rows["+ faktor laten (model penuh)"] < rows["+ bias pengguna dan item"]
 '''),
 md("""
-**Interpretasi (simulasi).** Pada simulasi ini faktor laten menyumbang penurunan galat terbesar, karena struktur laten sengaja dibuat kuat (bobot 0,6 pada perkalian faktor). Di data nyata biasanya sebaliknya: baseline bias sering sudah mengambil porsi besar, dan faktor laten memberi tambahan yang lebih kecil. Karena itu baseline bias tetap wajib dilaporkan, agar kontribusi faktor laten terukur dengan jujur.
+**Interpretasi (simulasi).** Pada simulasi ini faktor laten menyumbang penurunan error terbesar, karena struktur laten sengaja dibuat kuat (bobot 0,6 pada perkalian faktor). Di data nyata biasanya sebaliknya: baseline bias sering sudah mengambil porsi besar, dan faktor laten memberi tambahan yang lebih kecil. Karena itu baseline bias tetap wajib dilaporkan, agar kontribusi faktor laten terukur dengan jujur.
 """),
 md("""
 ## 4. Eksperimen B: jumlah iterasi
 
-Latih ulang dengan `iters` berbeda dan lihat galat latih dan uji.
+Latih ulang dengan `iters` berbeda dan lihat training error dan uji.
 """),
 code('''
 rows = []
@@ -115,7 +115,7 @@ print(hasil_it.round(3))
 assert hasil_it["RMSE_latih"].iloc[-1] < hasil_it["RMSE_latih"].iloc[0]
 '''),
 md("""
-**Interpretasi.** ALS menurunkan galat latih dengan cepat: setiap langkah adalah solusi tertutup per pengguna atau item, bukan langkah kecil gradien. Pada data ini galat berhenti turun setelah sekitar lima iterasi. Perhatikan galat uji, bukan hanya galat latih, saat memutuskan berhenti.
+**Interpretasi.** ALS menurunkan training error dengan cepat: setiap langkah adalah solusi closed-form per pengguna atau item, bukan langkah kecil gradien. Pada data ini error berhenti turun setelah sekitar lima iterasi. Perhatikan test error, bukan hanya training error, saat memutuskan berhenti.
 """),
 md("""
 ## 5. Eksperimen C: dimensi d dan regularisasi λ
@@ -139,10 +139,10 @@ final = als_bias(R_latih, m, n, d=d_best, lam=lam_best, iters=6)
 print(f"terbaik pada validasi: d={d_best}, lam={lam_best} | RMSE uji = {rmse(r[te], pred(final, u[te], i[te])):.3f}")
 '''),
 md("""
-**Interpretasi.** λ yang terlalu kecil membuat solusi ridge menghafal (terutama pada pengguna dengan sedikit rating), dan galat validasi naik pada *d* besar. λ yang terlalu besar membuat model *underfit*. Nilai menengah menstabilkan faktor. Dimensi *d* lebih besar hanya membantu bila λ ikut memadai. Menyetel *d* dan λ bersama pada validasi, lalu melaporkan satu kali pada uji, adalah protokol yang benar.
+**Interpretasi.** λ yang terlalu kecil membuat solusi ridge menghafal (terutama pada pengguna dengan sedikit rating), dan validation error naik pada *d* besar. λ yang terlalu besar membuat model *underfit*. Nilai menengah menstabilkan faktor. Dimensi *d* lebih besar hanya membantu bila λ ikut memadai. Menyetel *d* dan λ bersama pada validasi, lalu melaporkan satu kali pada uji, adalah protokol yang benar.
 """),
 footer([
- "Mengapa solusi tertutup `np.linalg.solve(Qu.T @ Qu + lam * I, Qu.T @ y)` stabil untuk pengguna dengan satu rating, padahal `Qu` hanya satu baris?",
+ "Mengapa solusi closed-form `np.linalg.solve(Qu.T @ Qu + lam * I, Qu.T @ y)` stabil untuk pengguna dengan satu rating, padahal `Qu` hanya satu baris?",
  "Dengan `lam=0`, apa yang terjadi pada pengguna yang jumlah ratingnya lebih sedikit daripada d?",
  "Bagaimana ALS diparalelkan, dan mengapa langkah per pengguna (dan per item) saling bebas?",
 ]),
@@ -151,11 +151,11 @@ footer([
 # ------------------------------------------------------------------ 4.2 OOF fitur
 P = "notebooks/bab04_hybrid_cf/02_fitur_statistik_out_of_fold.ipynb"
 NB[P] = [
-header(P, "Fitur statistik out-of-fold: mencegah kebocoran target", 4, "Kode 4.4.1",
+header(P, "Fitur statistik out-of-fold: mencegah target leakage", 4, "Kode 4.4.1",
  ["Memahami mengapa rata-rata rating per pengguna atau item harus dihitung out-of-fold untuk data latih.",
-  "Mengukur kerusakan akibat kebocoran pada pengguna dengan sedikit rating.",
-  "Melihat peran penghalusan (m) pada rata-rata yang bertumpu pada sedikit data."],
- catatan="> Model hilir di notebook ini adalah `HistGradientBoostingRegressor` dari scikit-learn (bukan LightGBM seperti pada eksperimen di buku), agar tidak memerlukan pustaka tambahan."),
+  "Mengukur kerusakan akibat data leakage pada pengguna dengan sedikit rating.",
+  "Melihat peran smoothing (m) pada rata-rata yang bertumpu pada sedikit data."],
+ catatan="> Downstream model di notebook ini adalah `HistGradientBoostingRegressor` dari scikit-learn (bukan LightGBM seperti pada eksperimen di buku), agar tidak memerlukan pustaka tambahan."),
 md("## 1. Kode dari buku"),
 code('''
 import numpy as np
@@ -166,7 +166,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 
 
 def oof_mean(train, key, k=5, m=5, seed=0):
-    """Rata-rata rating per `key` (user atau item) dengan penghalusan m, out-of-fold."""
+    """Rata-rata rating per `key` (user atau item) dengan smoothing m, out-of-fold."""
     gmean = train['rating'].mean()
     out = np.empty(len(train))
     for fit_idx, enc_idx in KFold(n_splits=k, shuffle=True, random_state=seed).split(train):
@@ -179,7 +179,7 @@ def oof_mean(train, key, k=5, m=5, seed=0):
 
 
 def oof_mean_test(train, test, key, m=5):
-    """Untuk data uji: statistik dari seluruh data latih, tanpa skema lipatan."""
+    """Untuk data uji: statistik dari seluruh data latih, tanpa skema out-of-fold."""
     gmean = train['rating'].mean()
     stats = train.groupby(key)['rating'].agg(['sum', 'count'])
     s = test[key].map(stats['sum']).fillna(0).to_numpy()
@@ -189,7 +189,7 @@ def oof_mean_test(train, test, key, m=5):
 md("""
 ## 2. Data simulasi dengan pengguna berjejak tipis
 
-Jumlah rating per pengguna sangat timpang (lognormal): sepertiga lebih pengguna hanya punya satu rating. Itulah situasi saat kebocoran paling merusak.
+Jumlah rating per pengguna sangat timpang (lognormal): sepertiga lebih pengguna hanya punya satu rating. Itulah situasi saat data leakage paling merusak.
 """),
 code('''
 rng = np.random.default_rng(0)
@@ -244,7 +244,7 @@ assert rmse(y, pred_uji["out-of-fold"]) < rmse(y, pred_uji["bocor"])
 md("""
 ## 4. Eksperimen B: siapa yang paling dirugikan?
 
-Pecah galat uji menurut banyaknya rating latih milik pengguna.
+Pecah test error menurut banyaknya rating latih milik pengguna.
 """),
 code('''
 n_tr = test["user"].map(n_per_user).fillna(0).to_numpy()
@@ -265,14 +265,14 @@ ax.set(xlabel="rating latih milik pengguna", ylabel="RMSE uji")
 fig.tight_layout()
 '''),
 md("""
-**Interpretasi (simulasi).** Kerugian akibat kebocoran terkonsentrasi pada pengguna dengan sedikit rating. Untuk pengguna dengan satu rating latih, fitur bocor adalah fungsi persis dari rating itu sendiri, sehingga model belajar "percaya fitur ini hampir mutlak". Di data uji, fitur itu tidak lagi memuat rating target, dan model yang terlalu percaya menjadi salah. Pada pengguna dengan banyak rating, rata-rata hampir tidak terpengaruh satu baris, jadi selisihnya kecil.
+**Interpretasi (simulasi).** Kerugian akibat data leakage terkonsentrasi pada pengguna dengan sedikit rating. Untuk pengguna dengan satu rating latih, fitur bocor adalah fungsi persis dari rating itu sendiri, sehingga model belajar "percaya fitur ini hampir mutlak". Di data uji, fitur itu tidak lagi memuat rating target, dan model yang terlalu percaya menjadi salah. Pada pengguna dengan banyak rating, rata-rata hampir tidak terpengaruh satu baris, jadi selisihnya kecil.
 
-Karena banyak sistem nyata didominasi pengguna berjejak tipis, kebocoran seperti ini dapat tampak sebagai "model bagus di validasi, buruk di produksi".
+Karena banyak sistem nyata didominasi pengguna berjejak tipis, data leakage seperti ini dapat tampak sebagai "model bagus di validasi, buruk di produksi".
 """),
 md("""
-## 5. Eksperimen C: penghalusan m
+## 5. Eksperimen C: smoothing m
 
-Rata-rata dengan sedikit data berisik. Penghalusan menarik rata-rata ke rata-rata global sebesar bobot `m`. Bandingkan beberapa nilai *m* pada pipeline out-of-fold.
+Rata-rata dengan sedikit data berisik. Smoothing menarik rata-rata ke rata-rata global sebesar bobot `m`. Bandingkan beberapa nilai *m* pada pipeline out-of-fold.
 """),
 code('''
 rows = []
@@ -282,11 +282,11 @@ for mm in (0.1, 1, 5, 20, 100):
 print(pd.DataFrame(rows).set_index("m").round(3))
 '''),
 md("""
-**Interpretasi.** Pengaruh *m* jauh lebih kecil daripada pengaruh kebocoran. Pada simulasi ini, *m* kecil sampai sedang mirip hasilnya. *m* yang sangat besar membuang sinyal per pengguna. Prioritas pertama: pastikan fitur tidak membocorkan target. Penyetelan *m* menyusul.
+**Interpretasi.** Pengaruh *m* jauh lebih kecil daripada pengaruh data leakage. Pada simulasi ini, *m* kecil sampai sedang mirip hasilnya. *m* yang sangat besar membuang sinyal per pengguna. Prioritas pertama: pastikan fitur tidak membocorkan target. Tuning *m* menyusul.
 """),
 footer([
- "Mengapa data uji memakai statistik dari *seluruh* data latih, bukan skema lipatan?",
- "Apa yang terjadi bila lipatan OOF dibuat per pengguna (bukan per baris)? Kapan itu perlu?",
+ "Mengapa data uji memakai statistik dari *seluruh* data latih, bukan skema out-of-fold?",
+ "Apa yang terjadi bila fold OOF dibuat per pengguna (bukan per baris)? Kapan itu perlu?",
  "Fitur lain apa yang rawan bocor dengan cara serupa (misalnya fitur hasil model lain yang dilatih pada data yang sama)?",
 ]),
 ]

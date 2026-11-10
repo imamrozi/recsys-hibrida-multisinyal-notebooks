@@ -7,7 +7,7 @@ NB = {}
 P = "notebooks/bab03_sentiment_aware/01_absa_dan_representasi_aspek.ipynb"
 NB[P] = [
 header(P, "Dari teks ulasan ke fitur aspek: ekstraksi ABSA dan empat representasi", 3, "Kode 3.2.1 dan 3.3.1",
- ["Mengubah ulasan menjadi tabel kalimat–aspek dengan skor sentimen dan konfidens.",
+ ["Mengubah ulasan menjadi tabel kalimat–aspek dengan skor sentimen dan confidence.",
   "Membandingkan empat cara merepresentasikan output ABSA sebagai fitur.",
   "Melihat mengapa rata-rata aspek dapat menghapus kontras polaritas."],
  catatan="> Klasifikator bintang di sini adalah **tiruan berbasis kamus kecil** (`star_logits_tiruan`), bukan model BERT. Ia ada agar pipeline bisa dijalankan tanpa mengunduh model. Angka yang keluar mirip pola pada Tabel 3.5, tetapi **tidak identik**."),
@@ -53,7 +53,7 @@ def extract(reviews, star_logits):
     return df
 '''),
 md("""
-Klasifikator tiruan: menilai kutub dari kata kunci, lalu menghasilkan logit 5 kelas berbentuk lonceng di sekitar bintang yang dituju. Kalimat tanpa petunjuk kutub mendapat sebaran lebar (tidak yakin), sehingga konfidens softmax-nya rendah.
+Klasifikator tiruan: menilai kutub dari kata kunci, lalu menghasilkan logit 5 kelas berbentuk lonceng di sekitar bintang yang dituju. Kalimat tanpa petunjuk kutub mendapat sebaran lebar (tidak yakin), sehingga confidence softmax-nya rendah.
 """),
 code('''
 POS = ["enak", "luar biasa", "lezat", "ramah", "cepat", "murah", "nyaman", "bagus", "segar"]
@@ -85,7 +85,7 @@ Satu baris per pasangan (kalimat, aspek). Ulasan A memiliki satu kalimat tentang
 """),
 md("## 2. Kode dari buku: empat representasi (Kode 3.3.1)"),
 code('''
-FLOOR, EVID_CAP = 0.05, 3  # lantai konfidens, batas bukti (jumlah kalimat)
+FLOOR, EVID_CAP = 0.05, 3  # lantai confidence, batas bukti (jumlah kalimat)
 
 
 def per_aspect_table(sent, s0, aspects):
@@ -113,7 +113,7 @@ def mean_score(s_filled, hit, s0):
 
 
 def conf_weighted_mean(s_filled, c, hit, s0):
-    """Strategi 2: rata-rata berbobot konfidens, hanya aspek yang disebut."""
+    """Strategi 2: rata-rata berbobot confidence, hanya aspek yang disebut."""
     w = np.where(hit, c, 0.0)
     den = w.sum(axis=1)
     weighted = (w * s_filled).sum(axis=1) / np.maximum(den, 1e-12)
@@ -162,7 +162,7 @@ A, B = rep["mean"].loc["A", "s_mean"], rep["mean"].loc["B", "s_mean"]
 print(f"mean A = {A:.3f}, mean B = {B:.3f}, selisih = {abs(A - B):.3f}")
 sA = rep["concat"].loc["A"]
 assert sA["s_food"] - sA["s_service"] > 0.5            # kontras tetap ada pada concat
-# aspek yang tidak disebut tidak pernah mendapat konfidens > 0,5 (hanya suku margin yang tersisa)
+# aspek yang tidak disebut tidak pernah mendapat confidence > 0,5 (hanya suku margin yang tersisa)
 cc = rep["concat_conf"]
 assert (cc.loc["A", ["c_price", "c_ambiance"]] <= 0.5).all()
 '''),
@@ -213,11 +213,11 @@ print(tabel.round(1))
 assert tabel.loc[0.35, "0 aspek_%"] + tabel.loc[0.35, "1 aspek_%"] > 50
 '''),
 md("""
-**Interpretasi (simulasi).** Jika setiap aspek hanya disebut dengan peluang sekitar sepertiga, lebih dari separuh ulasan menyebut satu aspek atau tidak sama sekali. Untuk ulasan itu, "rata-rata multi-aspek" adalah skor satu kalimat, atau cadangan `s0`. Ia bukan ringkasan beberapa aspek. Menurut buku, inilah yang menyuntikkan derau pada dua varian agregasi.
+**Interpretasi (simulasi).** Jika setiap aspek hanya disebut dengan peluang sekitar sepertiga, lebih dari separuh ulasan menyebut satu aspek atau tidak sama sekali. Untuk ulasan itu, "rata-rata multi-aspek" adalah skor satu kalimat, atau cadangan `s0`. Ia bukan ringkasan beberapa aspek. Menurut buku, inilah yang menyuntikkan noise pada dua varian agregasi.
 """),
 footer([
- "Mengapa konfidens aspek yang tidak disebut tidak pernah melebihi 0,5 pada Persamaan (3-3)? Apa gunanya bagi model hilir?",
- "Kalimat tanpa kata kutub mendapat konfidens softmax rendah di klasifikator tiruan. Apa yang terjadi bila klasifikator sungguhan *overconfident* pada kalimat seperti itu?",
+ "Mengapa confidence aspek yang tidak disebut tidak pernah melebihi 0,5 pada Persamaan (3-3)? Apa gunanya bagi downstream model?",
+ "Kalimat tanpa kata kutub mendapat confidence softmax rendah di klasifikator tiruan. Apa yang terjadi bila klasifikator sungguhan *overconfident* pada kalimat seperti itu?",
  "Ubah `LEXICON` ke domain hotel. Apa yang berubah pada tabel kalimat–aspek, dan apa yang tidak?",
 ]),
 ]
@@ -228,8 +228,8 @@ def simulasi_ulasan(m=600, n=200, K=4, density=0.15, noise=0.3, conf_informatif=
     """Data ulasan tiruan: rating bergantung pada kualitas aspek item dan bobot aspek pengguna.
     Asumsi yang dibuat (bukan fakta empiris):
       - aspek berbeda punya kepentingan umum berbeda (w_global);
-      - sentimen aspek yang DIEKSTRAK = sentimen sebenarnya + derau;
-      - konfidens `c` bersifat informatif bila ia menurun saat derau naik (conf_informatif=True),
+      - sentimen aspek yang DIEKSTRAK = sentimen sebenarnya + noise;
+      - confidence `c` bersifat informatif bila ia menurun saat noise naik (conf_informatif=True),
         atau acak murni (False)."""
     rng = np.random.default_rng(seed)
     mask = rng.random((m, n)) < density
@@ -244,7 +244,7 @@ def simulasi_ulasan(m=600, n=200, K=4, density=0.15, noise=0.3, conf_informatif=
     r = (3.0 + bu[u] + bi[i] + 0.25 * (P[u] * Q[i]).sum(1)
          + (a[u] * (2 * t - 1)).sum(1) + rng.normal(0, .4, N))
     r = np.clip(np.round(r), 1, 5)
-    sigma = noise * rng.uniform(0.3, 1.7, (N, K))            # derau ekstraksi bervariasi per sampel
+    sigma = noise * rng.uniform(0.3, 1.7, (N, K))            # noise ekstraksi bervariasi per sampel
     s = np.clip(t + rng.normal(0, sigma), 0, 1)              # sentimen terekstrak
     if conf_informatif:
         c = np.clip(0.97 - 1.4 * sigma + rng.normal(0, .05, (N, K)), 0.2, 0.97)
@@ -260,15 +260,15 @@ def bagi(N, seed, frac=0.2):
     return perm[int(frac * N):], perm[:int(frac * N)]        # indeks latih, uji
 '''
 
-# ------------------------------------------------------------------ 3.2 konfidens + MF aspek
+# ------------------------------------------------------------------ 3.2 confidence + MF aspek
 P = "notebooks/bab03_sentiment_aware/02_konfidens_gerbang_mf_aspek.ipynb"
 NB[P] = [
-header(P, "Konfidens, gerbang sigmoid, dan MF dengan suku aspek", 3, "Kode 3.4.1 dan 3.5.1",
- ["Menghitung konfidens softmax dan melihat batasnya pada klasifikator lima kelas.",
-  "Memahami gerbang sigmoid g(c) dan peran τ serta k.",
+header(P, "Confidence, sigmoid gate, dan MF dengan suku aspek", 3, "Kode 3.4.1 dan 3.5.1",
+ ["Menghitung confidence softmax dan melihat batasnya pada klasifikator lima kelas.",
+  "Memahami sigmoid gate g(c) dan peran τ serta k.",
   "Membandingkan MF, MF+ABSA, dan MF+CA-ABSA pada kualitas ekstraksi yang berbeda."],
- catatan="> Eksperimen B dan C memakai **simulasi dengan asumsi eksplisit** (lihat docstring `simulasi_ulasan`). Hasilnya menunjukkan *kapan* gerbang membantu atau tidak, bukan seberapa besar manfaatnya pada dataset nyata."),
-md("## 1. Kode dari buku: konfidens dan gerbang (Kode 3.4.1)"),
+ catatan="> Eksperimen B dan C memakai **simulasi dengan asumsi eksplisit** (lihat docstring `simulasi_ulasan`). Hasilnya menunjukkan *kapan* gate membantu atau tidak, bukan seberapa besar manfaatnya pada dataset nyata."),
+md("## 1. Kode dari buku: confidence dan gate (Kode 3.4.1)"),
 code('''
 import numpy as np
 import pandas as pd
@@ -286,9 +286,9 @@ def gate(c, tau=0.5, k=10.0):
     return 1.0 / (1.0 + np.exp(-k * (c - tau)))
 '''),
 md("""
-### Eksperimen A: apa arti konfidens softmax?
+### Eksperimen A: apa arti confidence softmax?
 
-Untuk 5 kelas, konfidens minimum adalah 1/5 = 0,2 (tebakan seragam). Kita variasikan "ketajaman" logit dan lihat konfidensnya, lalu gambar gerbang untuk beberapa pasangan (τ, k).
+Untuk 5 kelas, confidence minimum adalah 1/5 = 0,2 (tebakan seragam). Kita variasikan "ketajaman" logit dan lihat confidence-nya, lalu gambar gate untuk beberapa pasangan (τ, k).
 """),
 code('''
 rng = np.random.default_rng(0)
@@ -304,13 +304,13 @@ cc = np.linspace(0.2, 1, 200)
 fig, ax = plt.subplots(figsize=(5.2, 3.2))
 for tau, k in ((0.5, 10), (0.5, 30), (0.7, 10), (0.3, 10)):
     ax.plot(cc, gate(cc, tau, k), label=f"τ={tau}, k={k}")
-ax.set(xlabel="konfidens c", ylabel="g(c)")
+ax.set(xlabel="confidence c", ylabel="g(c)")
 ax.legend()
 fig.tight_layout()
 assert conf_softmax(0.1 * z0).min() >= 0.2 - 1e-9
 '''),
 md("""
-**Interpretasi.** Konfidens softmax dibatasi dari bawah oleh 1/C. Logit yang tajam menghasilkan konfidens tinggi *tanpa jaminan* bahwa klasifikator benar, karena softmax tidak terkalibrasi. τ menggeser titik tengah gerbang dan *k* mengatur ketajamannya: *k* besar membuat gerbang hampir seperti sakelar.
+**Interpretasi.** Confidence softmax dibatasi dari bawah oleh 1/C. Logit yang tajam menghasilkan confidence tinggi *tanpa jaminan* bahwa klasifikator benar, karena softmax tidak terkalibrasi. τ menggeser titik tengah gate dan *k* mengatur ketajamannya: *k* besar membuat gate hampir seperti sakelar.
 """),
 md("## 2. Kode dari buku: MF dengan suku aspek (Kode 3.5.1)"),
 code('''
@@ -338,7 +338,7 @@ class AspectMF:
             for idx in np.array_split(self.rng.permutation(len(r)),
                                       max(1, len(r) // batch)):
                 ub, ib, sb = u[idx], i[idx], s[idx]
-                e = (r[idx] - self.predict(ub, ib, sb))[:, None]  # galat
+                e = (r[idx] - self.predict(ub, ib, sb))[:, None]  # error
                 pu, qi = self.P[ub].copy(), self.Q[ib].copy()
                 np.add.at(self.bu, ub, lr * (e[:, 0] - lam * self.bu[ub]))
                 np.add.at(self.bi, ib, lr * (e[:, 0] - lam * self.bi[ib]))
@@ -356,13 +356,13 @@ code(SIM),
 code('''
 D = simulasi_ulasan(noise=0.2)
 print("interaksi:", len(D["r"]), "| pengguna:", D["m"], "| item:", D["n"], "| aspek:", D["K"])
-print("rata-rata konfidens: %.2f | rata-rata g(c): %.2f | porsi g(c) < 0,5: %.1f%%"
+print("rata-rata confidence: %.2f | rata-rata g(c): %.2f | porsi g(c) < 0,5: %.1f%%"
       % (D["c"].mean(), gate(D["c"]).mean(), 100 * (gate(D["c"]) < .5).mean()))
 '''),
 md("""
-### Eksperimen B: kapan sentimen aspek membantu, dan kapan gerbang membantu?
+### Eksperimen B: kapan sentimen aspek membantu, dan kapan gate membantu?
 
-Variasikan derau ekstraksi (`noise`). Untuk tiap tingkat derau, tiga seed, kita bandingkan RMSE uji empat model: MF, MF+ABSA, MF+CA-ABSA dengan konfidens **informatif**, dan MF+CA-ABSA dengan konfidens **acak** (tidak berkaitan dengan derau).
+Variasikan noise ekstraksi (`noise`). Untuk tiap tingkat noise, tiga seed, kita bandingkan RMSE uji empat model: MF, MF+ABSA, MF+CA-ABSA dengan confidence **informatif**, dan MF+CA-ABSA dengan confidence **acak** (tidak berkaitan dengan noise).
 """),
 code('''
 def evaluasi(noise, seeds=(0, 1, 2)):
@@ -389,24 +389,24 @@ code('''
 fig, ax = plt.subplots(figsize=(6, 3.4))
 for kol, gaya in zip(tabel.columns, ("k--", "o-", "s-", "^:")):
     ax.plot(tabel.index, tabel[kol], gaya, label=kol)
-ax.set(xlabel="derau ekstraksi sentimen", ylabel="RMSE uji (rata-rata 3 seed)")
+ax.set(xlabel="noise ekstraksi sentimen", ylabel="RMSE uji (rata-rata 3 seed)")
 ax.legend(fontsize=7)
 fig.tight_layout()
 
-# klaim yang diuji (kualitatif): sentimen yang bersih membantu; manfaat itu menyusut seiring derau
+# klaim yang diuji (kualitatif): sentimen yang bersih membantu; manfaat itu menyusut seiring noise
 gain = tabel["MF"] - tabel["MF+ABSA"]
 assert gain.loc[0.05] > 0.03 and gain.loc[0.05] > gain.loc[0.7]
-# konfidens acak tidak lebih baik daripada konfidens informatif secara rata-rata
+# confidence acak tidak lebih baik daripada confidence informatif secara rata-rata
 assert tabel["MF+CA-ABSA (c informatif)"].mean() <= tabel["MF+CA-ABSA (c acak)"].mean()
 '''),
 md("""
 **Interpretasi (simulasi dengan asumsi di atas).**
 
-1. Sentimen aspek yang bersih (derau 0,05) menurunkan RMSE jauh di bawah MF. Manfaatnya menyusut saat derau naik. Pada derau tinggi MF+ABSA bahkan bisa lebih buruk daripada MF, karena suku aspek memasukkan derau ke prediksi.
-2. Gerbang dengan konfidens **informatif** meredam derau itu. Pada derau tertinggi ia menyelamatkan model dari kerugian MF+ABSA. Pada derau rendah ia sedikit mengorbankan sinyal, karena `g(c) < 1` ikut mengecilkan sentimen yang sebenarnya benar.
-3. Gerbang dengan konfidens **acak** tidak bisa membedakan sentimen yang andal dari yang tidak, sehingga hampir selalu lebih buruk daripada konfidens informatif. **Gerbang hanya berguna bila konfidens benar-benar membawa informasi tentang keandalan.** Pada klasifikator sungguhan, itu bergantung pada kalibrasi softmax, yang tidak dijamin.
+1. Sentimen aspek yang bersih (noise 0,05) menurunkan RMSE jauh di bawah MF. Manfaatnya menyusut saat noise naik. Pada noise tinggi MF+ABSA bahkan bisa lebih buruk daripada MF, karena suku aspek memasukkan noise ke prediksi.
+2. Gate dengan confidence **informatif** meredam noise itu. Pada noise tertinggi ia menyelamatkan model dari kerugian MF+ABSA. Pada noise rendah ia sedikit mengorbankan sinyal, karena `g(c) < 1` ikut mengecilkan sentimen yang sebenarnya benar.
+3. Gate dengan confidence **acak** tidak bisa membedakan sentimen yang andal dari yang tidak, sehingga hampir selalu lebih buruk daripada confidence informatif. **Gate hanya berguna bila confidence benar-benar membawa informasi tentang keandalan.** Pada klasifikator sungguhan, itu bergantung pada kalibrasi softmax, yang tidak dijamin.
 
-Selisih antara MF+ABSA dan MF+CA-ABSA kecil (di bawah satu persen pada derau rendah dan menengah). Karena itu bab 3.8 memakai uji berpasangan dan banyak seed. Lihat notebook berikutnya.
+Selisih antara MF+ABSA dan MF+CA-ABSA kecil (di bawah satu persen pada noise rendah dan menengah). Karena itu bab 3.8 memakai uji berpasangan dan banyak seed. Lihat notebook berikutnya.
 """),
 md("""
 ### Eksperimen C: apakah bobot aspek pengguna terpelajar benar?
@@ -429,15 +429,15 @@ print(kor_tab.round(3))
 assert kor_tab["ABSA"].is_monotonic_decreasing
 '''),
 md("""
-**Interpretasi.** Pada simulasi ini bobot aspek pengguna makin sulit dipulihkan saat derau naik. Gerbang **tidak** memperbaiki pemulihan bobot itu. Ia bahkan sedikit menurunkannya, karena `g(c) · s` mengecilkan sinyal yang dipakai untuk menaksir `a`. Jadi manfaat gerbang pada RMSE (Eksperimen B) tidak otomatis berarti pemahaman preferensi pengguna lebih baik. Itu hasil simulasi ini, bukan hukum umum. Kesimpulan seperti itu perlu diuji pada data nyata dengan label preferensi aspek yang valid, jika ada.
+**Interpretasi.** Pada simulasi ini bobot aspek pengguna makin sulit dipulihkan saat noise naik. Gate **tidak** memperbaiki pemulihan bobot itu. Ia bahkan sedikit menurunkannya, karena `g(c) · s` mengecilkan sinyal yang dipakai untuk menaksir `a`. Jadi manfaat gate pada RMSE (Eksperimen B) tidak otomatis berarti pemahaman preferensi pengguna lebih baik. Itu hasil simulasi ini, bukan hukum umum. Kesimpulan seperti itu perlu diuji pada data nyata dengan label preferensi aspek yang valid, jika ada.
 """),
 md("""
 ### Pemeriksaan gradien: apakah pembaruan SGD sesuai Persamaan (3-8)?
 
-Buku menyatakan bahwa pembaruan ditulis eksplisit agar dapat diperiksa dengan beda hingga. Di sini satu langkah SGD pada satu rating (kelas `AspectMF` apa adanya) dibandingkan dengan gradien numerik dari fungsi rugi `½ e² + ½ λ (‖θ‖²)` dengan beda hingga terpusat. Pada satu sampel, `fit` menyetel `mu = r`, jadi `mu` ikut menjadi konstanta rugi.
+Buku menyatakan bahwa pembaruan ditulis eksplisit agar dapat diperiksa dengan beda hingga. Di sini satu langkah SGD pada satu rating (kelas `AspectMF` apa adanya) dibandingkan dengan gradien numerik dari loss function `½ e² + ½ λ (‖θ‖²)` dengan beda hingga terpusat. Pada satu sampel, `fit` menyetel `mu = r`, jadi `mu` ikut menjadi konstanta dalam loss.
 """),
 code('''
-def rugi(m, u, i, r, s):
+def loss(m, u, i, r, s):
     e = r - m.predict(np.array([u]), np.array([i]), s)[0]
     reg = (m.bu[u] ** 2 + m.bi[i] ** 2 + (m.P[u] ** 2).sum() + (m.Q[i] ** 2).sum() + (m.A[u] ** 2).sum())
     return 0.5 * e ** 2 + 0.5 * m.reg * reg
@@ -454,9 +454,9 @@ def cek_gradien(seed=0, h=1e-6):
     # gradien numerik di titik awal (mu = r, seperti yang akan diset fit)
     def fd(nama, idx):
         arr = getattr(m, nama)
-        a0 = arr[idx]; arr[idx] = a0 + h; lp = rugi(m, u, i, r[0], s); arr[idx] = a0 - h; lm = rugi(m, u, i, r[0], s); arr[idx] = a0
+        a0 = arr[idx]; arr[idx] = a0 + h; lp = loss(m, u, i, r[0], s); arr[idx] = a0 - h; lm = loss(m, u, i, r[0], s); arr[idx] = a0
         return (lp - lm) / (2 * h)
-    galat = 0.0
+    error = 0.0
     num = {}
     for nama, baris in (("bu", u), ("bi", i), ("P", u), ("Q", i), ("A", u)):
         arr = getattr(m, nama)
@@ -466,20 +466,20 @@ def cek_gradien(seed=0, h=1e-6):
     m.fit(np.array([u]), np.array([i]), r, s, epochs=1, batch=1)
     for nama, baris in (("bu", u), ("bi", i), ("P", u), ("Q", i), ("A", u)):
         delta = getattr(m, nama)[baris] - sebelum[nama][baris]
-        galat = max(galat, float(np.max(np.abs(np.atleast_1d(delta) + num[nama]))))
-    return galat
+        error = max(error, float(np.max(np.abs(np.atleast_1d(delta) + num[nama]))))
+    return error
 
 g_maks = max(cek_gradien(sd) for sd in range(5))
-print(f"galat maksimum |pembaruan SGD + gradien numerik|: {g_maks:.2e}")
+print(f"error maksimum |pembaruan SGD + gradien numerik|: {g_maks:.2e}")
 assert g_maks < 1e-6
 '''),
 md("""
-**Interpretasi.** Pembaruan di `fit` identik dengan gradien rugi (sampai ketelitian beda hingga), termasuk suku aspek `dr̂/da = s`. Ini memeriksa *implementasi* terhadap persamaan, bukan kualitas model. Perhatikan bahwa pemeriksaan ini memakai satu sampel dan `lr = 1`; pada pelatihan sebenarnya, `np.add.at` menjumlahkan kontribusi sampel dalam satu batch, yang secara matematis setara dengan menjumlahkan gradien mereka.
+**Interpretasi.** Pembaruan di `fit` identik dengan gradien loss (sampai ketelitian beda hingga), termasuk suku aspek `dr̂/da = s`. Ini memeriksa *implementasi* terhadap persamaan, bukan kualitas model. Perhatikan bahwa pemeriksaan ini memakai satu sampel dan `lr = 1`; pada pelatihan sebenarnya, `np.add.at` menjumlahkan kontribusi sampel dalam satu batch, yang secara matematis setara dengan menjumlahkan gradien mereka.
 """),
 footer([
- "Mengapa gerbang memakai `g(c) · s` dan bukan menarik `s` ke 0,5 (netral) saat konfidens rendah? Apa konsekuensinya bagi tanda sumbangan aspek?",
- "Ubah `conf_informatif=False` dan ulangi Eksperimen B pada derau 0,7. Apa yang berubah?",
- "Bagaimana Anda akan memeriksa bahwa konfidens softmax klasifikator BERT sungguhan informatif? (Petunjuk: kurva kalibrasi.)",
+ "Mengapa gate memakai `g(c) · s` dan bukan menarik `s` ke 0,5 (netral) saat confidence rendah? Apa konsekuensinya bagi tanda sumbangan aspek?",
+ "Ubah `conf_informatif=False` dan ulangi Eksperimen B pada noise 0,7. Apa yang berubah?",
+ "Bagaimana Anda akan memeriksa bahwa confidence softmax klasifikator BERT sungguhan informatif? (Petunjuk: kurva kalibrasi.)",
 ]),
 ]
 
@@ -488,7 +488,7 @@ P = "notebooks/bab03_sentiment_aware/03_stacking_dan_uji_berpasangan.ipynb"
 NB[P] = [
 header(P, "Stacking out-of-fold dan uji berpasangan", 3, "Kode 3.6.1 dan 3.8.1",
  ["Memahami mengapa fitur stacking harus berasal dari prediksi out-of-fold.",
-  "Membandingkan representasi sentimen (mean, concat, concat+konfidens) pada fusi pohon keputusan.",
+  "Membandingkan representasi sentimen (mean, concat, concat+confidence) pada fusi pohon keputusan.",
   "Membaca uji berpasangan, bootstrap berpasangan, dan p gabungan Fisher dengan benar."],
  catatan="> Seperti notebook sebelumnya, data adalah simulasi dengan asumsi eksplisit. Selisih antar representasi di sini **kecil**, dan justru kasus seperti itu yang membutuhkan uji statistik."),
 md("## 1. Kode dari buku: stacking (Kode 3.6.1)"),
@@ -521,7 +521,7 @@ def fit_fusion(cf_oof, sent_train, y_train, max_depth=10, seed=0):
 md("## 2. Kode dari buku: uji berpasangan (Kode 3.8.1)"),
 code('''
 def rmse_gain_pct(se_base, se_new):
-    """Penurunan RMSE relatif (%) ; se_* = galat kuadrat per sampel uji."""
+    """Penurunan RMSE relatif (%) ; se_* = squared error per sampel uji."""
     return 100 * (1 - np.sqrt(se_new.mean()) / np.sqrt(se_base.mean()))
 
 
@@ -537,7 +537,7 @@ def paired_bootstrap_ci(se_base, se_new, n_boot=2000, alpha=0.05, seed=0):
 
 
 def per_seed_summary(se_base_by_seed, se_new_by_seed):
-    """Wilcoxon per seed (pada galat kuadrat per sampel) + p gabungan Fisher.
+    """Wilcoxon per seed (pada squared error per sampel) + p gabungan Fisher.
     Semua seed memakai set uji yang sama, jadi p gabungan hanyalah ringkasan."""
     p = [stats.wilcoxon(b, n).pvalue for b, n in zip(se_base_by_seed, se_new_by_seed)]
     fisher = stats.combine_pvalues(p, method="fisher").pvalue
@@ -573,7 +573,7 @@ class AspectMF:
             for idx in np.array_split(self.rng.permutation(len(r)),
                                       max(1, len(r) // batch)):
                 ub, ib, sb = u[idx], i[idx], s[idx]
-                e = (r[idx] - self.predict(ub, ib, sb))[:, None]  # galat
+                e = (r[idx] - self.predict(ub, ib, sb))[:, None]  # error
                 pu, qi = self.P[ub].copy(), self.Q[ib].copy()
                 np.add.at(self.bu, ub, lr * (e[:, 0] - lam * self.bu[ub]))
                 np.add.at(self.bi, ib, lr * (e[:, 0] - lam * self.bi[ib]))
@@ -630,12 +630,12 @@ print(bocor.round(3))
 assert (bocor["RMSE (fitur CF out-of-fold)"] < bocor["RMSE (fitur CF in-sample)"]).all()
 '''),
 md("""
-**Interpretasi.** Fitur CF out-of-fold menghasilkan RMSE uji yang lebih baik untuk ketiga representasi. Pada fitur in-sample, distribusi fitur saat pelatihan (terlalu akurat) berbeda dengan saat uji (kurang akurat): ini bentuk kebocoran. Skema lipatan menjaga distribusi keduanya sama.
+**Interpretasi.** Fitur CF out-of-fold menghasilkan RMSE uji yang lebih baik untuk ketiga representasi. Pada fitur in-sample, distribusi fitur saat pelatihan (terlalu akurat) berbeda dengan saat uji (kurang akurat): ini bentuk data leakage. Skema out-of-fold menjaga distribusi keduanya sama.
 """),
 md("""
 ### Eksperimen B: representasi sentimen dan kedalaman pohon
 
-Rata-rata tiga seed pada derau ekstraksi 0,1 dan 0,3. Kedalaman pohon 3, 5, dan 10 (nilai awal di buku).
+Rata-rata tiga seed pada noise ekstraksi 0,1 dan 0,3. Kedalaman pohon 3, 5, dan 10 (nilai awal di buku).
 """),
 code('''
 def eval_grid(noise, depths=(3, 5, 10), seeds=(0, 1, 2)):
@@ -662,13 +662,13 @@ md("""
 **Interpretasi (simulasi).**
 
 1. Menambahkan sentimen ke CF menurunkan RMSE dibandingkan CF saja, pada kedalaman yang wajar.
-2. **Kedalaman pohon lebih menentukan daripada pilihan representasi.** Pada kedalaman 10 (nilai awal di kode buku) semua varian memburuk karena pohon menghafal derau. Pada simulasi ini, kedalaman sekitar 5 lebih baik. Itu perlu disetel pada data validasi.
-3. Selisih antar representasi kecil. `concat` sedikit unggul atas `mean` pada derau rendah, dan blok konfidens tidak menambah akurasi pada kedalaman 3 dan 5. Pada data nyata di buku pola ini berbeda antar domain, jadi jangan menyimpulkan peringkat representasi dari satu simulasi.
+2. **Kedalaman pohon lebih menentukan daripada pilihan representasi.** Pada kedalaman 10 (nilai awal di kode buku) semua varian memburuk karena pohon menghafal noise. Pada simulasi ini, kedalaman sekitar 5 lebih baik. Itu perlu di-tuning pada data validasi.
+3. Selisih antar representasi kecil. `concat` sedikit unggul atas `mean` pada noise rendah, dan blok confidence tidak menambah akurasi pada kedalaman 3 dan 5. Pada data nyata di buku pola ini berbeda antar domain, jadi jangan menyimpulkan peringkat representasi dari satu simulasi.
 """),
 md("""
 ### Eksperimen C: uji berpasangan untuk selisih kecil
 
-Bandingkan `concat` dengan `mean` (kedalaman 5, derau 0,1). Data dan set uji tetap, **seed model** divariasikan (inisialisasi MF, lipatan OOF, pohon). Itu setara dengan "sepuluh seed pada set uji yang sama" pada buku, dengan lima seed agar cepat.
+Bandingkan `concat` dengan `mean` (kedalaman 5, noise 0,1). Data dan set uji tetap, **seed model** divariasikan (inisialisasi MF, fold OOF, pohon). Itu setara dengan "sepuluh seed pada set uji yang sama" pada buku, dengan lima seed agar cepat.
 """),
 code('''
 D = simulasi_ulasan(noise=0.1, seed=0)
@@ -702,8 +702,8 @@ md("""
 - Signifikan secara statistik tidak sama dengan bermakna secara praktis. Laporkan besar efek (persen penurunan RMSE) bersama CI.
 """),
 footer([
- "Mengapa `fit_predict` harus melatih model *baru* pada setiap lipatan, bukan memakai ulang model yang sama?",
+ "Mengapa `fit_predict` harus melatih model *baru* pada setiap fold, bukan memakai ulang model yang sama?",
  "Pada Eksperimen C, apa yang berubah jika set uji dibangkitkan ulang pada tiap seed? Mengapa p gabungan Fisher lebih sah dalam kasus itu?",
- "Tambahkan `min_samples_leaf` pada `DecisionTreeRegressor`. Apakah ia menggantikan penyetelan `max_depth`?",
+ "Tambahkan `min_samples_leaf` pada `DecisionTreeRegressor`. Apakah ia menggantikan tuning `max_depth`?",
 ]),
 ]
